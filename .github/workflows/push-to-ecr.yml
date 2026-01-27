@@ -12,7 +12,7 @@ permissions:
 env:
   AWS_REGION: ap-southeast-1
   ECR_REPOSITORY: devprotool/devpro
-  EKS_CLUSTER_NAME: REPLACE_ME
+  EKS_CLUSTER_NAME: devpro-eks
   K8S_NAMESPACE: default
 
 jobs:
@@ -49,8 +49,6 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           tags: |
             ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
             ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
