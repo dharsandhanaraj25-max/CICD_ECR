@@ -77,6 +77,12 @@ jobs:
       - name: Configure kubeconfig
         run: aws eks update-kubeconfig --name "${{ env.EKS_CLUSTER_NAME }}" --region "${{ env.AWS_REGION }}"
 
+      - name: Verify cluster access
+        run: |
+          aws eks describe-cluster --name "${{ env.EKS_CLUSTER_NAME }}" --region "${{ env.AWS_REGION }}" --query "cluster.status"
+          kubectl get nodes
+          kubectl get ns
+
       - name: Apply manifests
         run: |
           kubectl apply -n "${{ env.K8S_NAMESPACE }}" -f k8s/deployment.yml
@@ -87,4 +93,13 @@ jobs:
         run: |
           IMAGE="528757786303.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
           kubectl set image -n "${{ env.K8S_NAMESPACE }}" deployment/devprotool devprotool="${IMAGE}"
-          kubectl rollout status -n "${{ env.K8S_NAMESPACE }}" deployment/devprotool
+          kubectl rollout status -n "${{ env.K8S_NAMESPACE }}" deployment/devprotool --timeout=5m
+
+      - name: Debug on rollout failure
+        if: failure()
+        run: |
+          kubectl -n "${{ env.K8S_NAMESPACE }}" get deploy devprotool -o wide
+          kubectl -n "${{ env.K8S_NAMESPACE }}" describe deploy devprotool
+          kubectl -n "${{ env.K8S_NAMESPACE }}" get pods -l app=devprotool -o wide
+          kubectl -n "${{ env.K8S_NAMESPACE }}" describe pods -l app=devprotool
+          kubectl -n "${{ env.K8S_NAMESPACE }}" get events --sort-by=.lastTimestamp | tail -n 50
