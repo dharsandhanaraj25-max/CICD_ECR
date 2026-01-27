@@ -16,15 +16,23 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Connectivity check (STS)
+        shell: bash
+        run: |
+          curl -sS -I "https://sts.${AWS_REGION}.amazonaws.com" | head -n 1
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
+          role-session-name: github-actions-ecr
 
       - name: Verify AWS identity
         run: aws sts get-caller-identity
