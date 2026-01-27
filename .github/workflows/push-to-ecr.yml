@@ -12,6 +12,8 @@ permissions:
 env:
   AWS_REGION: ap-southeast-1
   ECR_REPOSITORY: devprotool/devpro
+  EKS_CLUSTER_NAME: REPLACE_ME
+  K8S_NAMESPACE: default
 
 jobs:
   build-and-push:
@@ -47,6 +49,44 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
             ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
             ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+
+  deploy-to-eks:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: github-actions-eks
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "v1.30.0"
+
+      - name: Configure kubeconfig
+        run: aws eks update-kubeconfig --name "${{ env.EKS_CLUSTER_NAME }}" --region "${{ env.AWS_REGION }}"
+
+      - name: Apply manifests
+        run: |
+          kubectl apply -n "${{ env.K8S_NAMESPACE }}" -f k8s/deployment.yml
+          kubectl apply -n "${{ env.K8S_NAMESPACE }}" -f k8s/service.yml
+
+      - name: Update image to this commit SHA and rollout
+        shell: bash
+        run: |
+          IMAGE="528757786303.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
+          kubectl set image -n "${{ env.K8S_NAMESPACE }}" deployment/devprotool devprotool="${IMAGE}"
+          kubectl rollout status -n "${{ env.K8S_NAMESPACE }}" deployment/devprotool
