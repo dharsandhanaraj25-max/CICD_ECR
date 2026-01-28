@@ -19,3 +19,10 @@ spec:
           image: 528757786303.dkr.ecr.ap-southeast-1.amazonaws.com/devprotool/devpro:latest
           ports:
             - containerPort: 80
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
